@@ -34,25 +34,31 @@ connectDB();
    MIDDLEWARE
 ===================================================== */
 
-// CORS
+const allowedOrigins = ["http://localhost:5173", process.env.CLIENT_URL].filter(
+  Boolean,
+);
+
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   }),
 );
 
-// Parse JSON requests
 app.use(express.json());
 
-// Parse form data
 app.use(express.urlencoded({ extended: true }));
 
 /* =====================================================
    STATIC FILES
 ===================================================== */
 
-// Uploaded images/files
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 /* =====================================================
@@ -115,10 +121,9 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log("=================================");
   console.log(`✅ Server running on port ${PORT}`);
-  console.log(`🌐 http://localhost:${PORT}`);
   console.log(`🔐 Admin API: /api/admin`);
   console.log(`🎓 Student API: /api/student`);
   console.log(`📅 Attendance API: /api/attendance`);
