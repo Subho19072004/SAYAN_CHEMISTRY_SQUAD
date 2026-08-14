@@ -12,6 +12,7 @@ import galleryRoutes from "./routes/galleryRoutes.js";
 import settingsRoutes from "./routes/settingsRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js";
 import attendanceRoutes from "./routes/attendanceRoutes.js";
+import assignmentRoutes from "./routes/assignmentRoutes.js";
 
 dotenv.config();
 
@@ -78,6 +79,8 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/student", studentRoutes);
 
 app.use("/api/attendance", attendanceRoutes);
+
+app.use("/api/assignments", assignmentRoutes);
 
 /* =====================================================
    DEFAULT API ROUTE

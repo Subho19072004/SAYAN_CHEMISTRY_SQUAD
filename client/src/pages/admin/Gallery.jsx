@@ -1,15 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   FaImages,
   FaUpload,
   FaTrash,
   FaSearch,
-  FaClipboardList,
-  FaUserGraduate,
-  FaBullhorn,
-  FaCog,
-  FaSignOutAlt,
   FaSpinner,
   FaEye,
 } from "react-icons/fa";
@@ -21,64 +16,116 @@ import {
   deleteImage,
 } from "../../services/galleryService";
 
+const SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL;
+
 function Gallery() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  // Upload States
+  // =====================================================
+  // STATES
+  // =====================================================
+
   const [title, setTitle] = useState("");
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState("");
 
-  // Gallery States
   const [gallery, setGallery] = useState([]);
   const [search, setSearch] = useState("");
 
-  // Loading States
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState("");
 
+  // =====================================================
+  // SERVER URL CHECK
+  // =====================================================
+
   useEffect(() => {
-    fetchGallery();
+    console.log("SERVER BASE URL:", SERVER_BASE_URL);
+
+    if (!SERVER_BASE_URL) {
+      console.error("VITE_SERVER_BASE_URL is missing from client/.env");
+    }
   }, []);
 
-  // =============================
-  // Fetch Gallery
-  // =============================
+  // =====================================================
+  // FETCH GALLERY
+  // =====================================================
+
   const fetchGallery = async () => {
     try {
       setLoading(true);
 
-      const res = await getGallery();
+      const response = await getGallery();
 
-      setGallery(res.data.data || []);
+      console.log("GALLERY RESPONSE:", response.data);
+
+      const data = response.data?.data;
+
+      if (!Array.isArray(data)) {
+        throw new Error("Invalid gallery response from server.");
+      }
+
+      setGallery(data);
     } catch (error) {
-      console.log(error);
+      console.error("FETCH GALLERY ERROR:", error);
+      console.error("STATUS:", error.response?.status);
+      console.error("RESPONSE:", error.response?.data);
 
-      toast.error("Unable to load gallery.");
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Unable to load gallery.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // =============================
-  // Image Preview
-  // =============================
-  const handleImage = (e) => {
-    const file = e.target.files[0];
+  // =====================================================
+  // LOAD GALLERY
+  // =====================================================
 
-    if (!file) return;
+  useEffect(() => {
+    fetchGallery();
+  }, []);
+
+  // =====================================================
+  // IMAGE PREVIEW
+  // =====================================================
+
+  const handleImage = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
 
     setImage(file);
     setPreview(URL.createObjectURL(file));
   };
 
-  // =============================
-  // Upload Image
-  // =============================
-  const handleUpload = async (e) => {
-    e.preventDefault();
+  // =====================================================
+  // CLEAR UPLOAD FORM
+  // =====================================================
+
+  const clearUploadForm = () => {
+    setTitle("");
+    setImage(null);
+    setPreview("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // =====================================================
+  // UPLOAD IMAGE
+  // =====================================================
+
+  const handleUpload = async (event) => {
+    event.preventDefault();
 
     if (!title.trim()) {
       toast.warning("Please enter image title.");
@@ -95,59 +142,98 @@ function Gallery() {
 
       const formData = new FormData();
 
-      formData.append("title", title);
+      formData.append("title", title.trim());
       formData.append("image", image);
 
-      await uploadImage(formData);
+      const response = await uploadImage(formData);
+
+      console.log("UPLOAD RESPONSE:", response.data);
 
       toast.success("Image uploaded successfully.");
 
-      setTitle("");
-      setImage(null);
-      setPreview("");
+      clearUploadForm();
 
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-
-      fetchGallery();
+      await fetchGallery();
     } catch (error) {
-      console.log(error);
+      console.error("UPLOAD GALLERY ERROR:", error);
+      console.error("STATUS:", error.response?.status);
+      console.error("RESPONSE:", error.response?.data);
 
-      toast.error(error.response?.data?.message || "Upload failed.");
+      toast.error(
+        error.response?.data?.message || error.message || "Upload failed.",
+      );
     } finally {
       setUploading(false);
     }
   };
 
-  // =============================
-  // Delete Image
-  // =============================
-  const handleDelete = async (id) => {
-    const confirmDelete = window.confirm("Delete this image permanently?");
+  // =====================================================
+  // DELETE IMAGE
+  // =====================================================
 
-    if (!confirmDelete) return;
+  const handleDelete = async (id) => {
+    const confirmed = window.confirm("Delete this image permanently?");
+
+    if (!confirmed) {
+      return;
+    }
 
     try {
       setDeletingId(id);
 
-      await deleteImage(id);
+      const response = await deleteImage(id);
+
+      console.log("DELETE RESPONSE:", response.data);
 
       toast.success("Image deleted successfully.");
 
-      fetchGallery();
+      await fetchGallery();
     } catch (error) {
-      console.log(error);
+      console.error("DELETE GALLERY ERROR:", error);
+      console.error("STATUS:", error.response?.status);
+      console.error("RESPONSE:", error.response?.data);
 
-      toast.error("Delete failed.");
+      toast.error(
+        error.response?.data?.message || error.message || "Delete failed.",
+      );
     } finally {
       setDeletingId("");
     }
   };
 
-  // =============================
-  // Logout
-  // =============================
+  // =====================================================
+  // OPEN IMAGE
+  // =====================================================
+
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) {
+      return "";
+    }
+
+    // Already an absolute URL
+    if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+      return imagePath;
+    }
+
+    // Production backend
+    return `${SERVER_BASE_URL}${imagePath}`;
+  };
+
+  const handleViewImage = (imagePath) => {
+    const imageUrl = getImageUrl(imagePath);
+
+    if (!imageUrl) {
+      toast.error("Image URL not available.");
+      return;
+    }
+
+    window.open(imageUrl, "_blank", "noopener,noreferrer");
+  };
+
+  // =====================================================
+  // LOGOUT
+  // =====================================================
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("admin");
@@ -155,66 +241,91 @@ function Gallery() {
     navigate("/admin/login");
   };
 
-  // =============================
-  // Search
-  // =============================
-  const filteredGallery = gallery.filter((item) =>
-    item.title?.toLowerCase().includes(search.toLowerCase()),
-  );
+  // =====================================================
+  // SEARCH
+  // =====================================================
+
+  const filteredGallery = gallery.filter((item) => {
+    const itemTitle = item.title || "";
+
+    return itemTitle.toLowerCase().includes(search.toLowerCase());
+  });
+
+  // =====================================================
+  // LOADING
+  // =====================================================
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <FaSpinner className="text-6xl text-blue-600 animate-spin mx-auto mb-5" />
+
+          <h3 className="text-2xl font-semibold">Loading Gallery...</h3>
+        </div>
+      </div>
+    );
+  }
+
+  // =====================================================
+  // UI
+  // =====================================================
 
   return (
-    <div className="min-h-screen flex bg-gray-100">
+    <div className="min-h-screen bg-gray-100 p-8">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-800">
+            Gallery Management
+          </h2>
 
-      {/* ================= Main Content ================= */}
-
-      <div className="flex-1 p-8">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h2 className="text-3xl font-bold">Gallery Management</h2>
-
-            <p className="text-gray-500 mt-2">
-              Upload and manage gallery images.
-            </p>
-          </div>
-
-          <div className="bg-blue-600 text-white px-6 py-3 rounded-xl shadow-lg">
-            <p className="text-sm">Total Images</p>
-
-            <h3 className="text-2xl font-bold">{gallery.length}</h3>
-          </div>
+          <p className="text-gray-500 mt-2">
+            Upload and manage gallery images.
+          </p>
         </div>
 
-        {/* ================= Upload Card ================= */}
+        <div className="bg-blue-600 text-white px-6 py-3 rounded-xl shadow-lg">
+          <p className="text-sm">Total Images</p>
 
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-          <h3 className="text-xl font-semibold mb-5">Upload New Image</h3>
+          <h3 className="text-2xl font-bold">{gallery.length}</h3>
+        </div>
+      </div>
 
-          <form onSubmit={handleUpload}>
-            <input
-              type="text"
-              placeholder="Enter Image Title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full border rounded-lg p-3 mb-5 outline-none focus:ring-2 focus:ring-blue-500"
+      {/* UPLOAD CARD */}
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <h3 className="text-xl font-semibold mb-5">Upload New Image</h3>
+
+        <form onSubmit={handleUpload}>
+          <input
+            type="text"
+            placeholder="Enter Image Title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            disabled={uploading}
+            className="w-full border rounded-lg p-3 mb-5 outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+          />
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImage}
+            disabled={uploading}
+            className="mb-5"
+          />
+
+          {preview && (
+            <img
+              src={preview}
+              alt="Preview"
+              className="w-72 h-48 rounded-lg border shadow object-cover mb-5"
             />
+          )}
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImage}
-              className="mb-5"
-            />
-
-            {preview && (
-              <img
-                src={preview}
-                alt="Preview"
-                className="w-72 h-48 rounded-lg border shadow object-cover mb-5"
-              />
-            )}
-
+          <div className="flex gap-3">
             <button
+              type="submit"
               disabled={uploading}
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition"
             >
@@ -230,58 +341,63 @@ function Gallery() {
                 </>
               )}
             </button>
-          </form>
+
+            <button
+              type="button"
+              onClick={clearUploadForm}
+              disabled={uploading}
+              className="bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 text-white px-6 py-3 rounded-lg"
+            >
+              Clear
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* SEARCH */}
+      <div className="bg-white rounded-xl shadow-lg p-5 mb-8">
+        <div className="flex items-center border rounded-lg px-4 py-3">
+          <FaSearch className="text-gray-400" />
+
+          <input
+            type="text"
+            placeholder="Search image..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="w-full ml-3 outline-none"
+          />
         </div>
+      </div>
 
-        {/* ================= Search ================= */}
+      {/* GALLERY */}
+      {filteredGallery.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-lg p-16 text-center">
+          <FaImages className="text-7xl text-gray-300 mx-auto mb-5" />
 
-        <div className="bg-white rounded-xl shadow-lg p-5 mb-8">
-          <div className="flex items-center border rounded-lg px-4 py-3">
-            <FaSearch className="text-gray-400" />
+          <h3 className="text-3xl font-bold text-gray-700">No Images Found</h3>
 
-            <input
-              type="text"
-              placeholder="Search image..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full ml-3 outline-none"
-            />
-          </div>
+          <p className="text-gray-500 mt-3">Upload your first gallery image.</p>
         </div>
-        {/* ================= Gallery ================= */}
+      ) : (
+        <div className="grid xl:grid-cols-4 lg:grid-cols-3 md:grid-cols-2 gap-6">
+          {filteredGallery.map((item) => {
+            const imageUrl = getImageUrl(item.image);
 
-        {loading ? (
-          <div className="bg-white rounded-xl shadow-lg p-16 text-center">
-            <FaSpinner className="text-6xl text-blue-600 animate-spin mx-auto mb-5" />
-
-            <h3 className="text-2xl font-semibold">Loading Gallery...</h3>
-          </div>
-        ) : filteredGallery.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-lg p-16 text-center">
-            <FaImages className="text-7xl text-gray-300 mx-auto mb-5" />
-
-            <h3 className="text-3xl font-bold text-gray-700">
-              No Images Found
-            </h3>
-
-            <p className="text-gray-500 mt-3">
-              Upload your first gallery image.
-            </p>
-          </div>
-        ) : (
-          <div className="grid xl:grid-cols-4 lg:grid-cols-3 md:grid-cols-2 gap-6">
-            {filteredGallery.map((item) => (
+            return (
               <div
                 key={item._id}
                 className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition duration-300"
               >
                 <img
-                  src={`http://localhost:5000${item.image}`}
-                  alt={item.title}
-                  onClick={() =>
-                    window.open(`http://localhost:5000${item.image}`, "_blank")
-                  }
+                  src={imageUrl}
+                  alt={item.title || "Gallery image"}
+                  onError={(event) => {
+                    console.error("IMAGE LOAD FAILED:", imageUrl);
+
+                    event.currentTarget.style.display = "none";
+                  }}
                   className="w-full h-56 object-cover cursor-pointer"
+                  onClick={() => handleViewImage(item.image)}
                 />
 
                 <div className="p-5">
@@ -291,21 +407,19 @@ function Gallery() {
 
                   <p className="text-sm text-gray-500 mt-2">
                     Uploaded on{" "}
-                    {new Date(item.createdAt).toLocaleDateString("en-IN", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
+                    {item.createdAt
+                      ? new Date(item.createdAt).toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "-"}
                   </p>
 
                   <div className="flex gap-3 mt-5">
                     <button
-                      onClick={() =>
-                        window.open(
-                          `http://localhost:5000${item.image}`,
-                          "_blank",
-                        )
-                      }
+                      type="button"
+                      onClick={() => handleViewImage(item.image)}
                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg flex items-center justify-center gap-2 transition"
                     >
                       <FaEye />
@@ -313,6 +427,7 @@ function Gallery() {
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => handleDelete(item._id)}
                       disabled={deletingId === item._id}
                       className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white py-2 rounded-lg flex items-center justify-center gap-2 transition"
@@ -332,10 +447,10 @@ function Gallery() {
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
