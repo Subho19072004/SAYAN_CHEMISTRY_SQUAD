@@ -1,10 +1,16 @@
 import axios from "axios";
 
+const API_BASE_URL =
+  window.location.hostname === "localhost"
+    ? "http://localhost:5000/api"
+    : "https://sayan-chemistry-api.onrender.com/api";
+
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: API_BASE_URL,
   withCredentials: true,
 });
 
+// Automatically attach JWT token
 API.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
