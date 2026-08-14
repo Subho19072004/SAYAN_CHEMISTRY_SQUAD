@@ -1,27 +1,4 @@
-import axios from "axios";
-
-const API = axios.create({
-  baseURL: "http://localhost:5000/api",
-  withCredentials: true,
-});
-
-// =====================================================
-// Automatically attach JWT token to every request
-// =====================================================
-API.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("token");
-
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  },
-);
+import API from "../api/axios";
 
 // =====================================================
 // ADMIN AUTH
@@ -79,7 +56,7 @@ export const getAllStudents = () => {
 // ATTENDANCE
 // =====================================================
 
-// Mark Attendance (Bulk)
+// Mark Attendance
 export const markAttendance = (data) => {
   return API.post("/attendance/mark", data);
 };
@@ -88,5 +65,3 @@ export const markAttendance = (data) => {
 export const getAttendanceByDate = (date) => {
   return API.get(`/attendance/date/${date}`);
 };
-
-export default API;
