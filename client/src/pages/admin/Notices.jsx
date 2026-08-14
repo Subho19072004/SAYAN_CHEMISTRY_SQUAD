@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import Swal from "sweetalert2";
+
 import {
   getAllNotices,
   createNotice,
@@ -9,12 +10,9 @@ import {
 } from "../../services/noticeService";
 
 function Notices() {
-  // =========================
-  // States
-  // =========================
-
   const [notices, setNotices] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -22,78 +20,105 @@ function Notices() {
   });
 
   const [editingId, setEditingId] = useState(null);
-
   const [search, setSearch] = useState("");
 
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const noticesPerPage = 5;
 
-  useEffect(() => {
-    fetchNotices();
-  }, []);
-
-  // =========================
-  // Fetch Notices
-  // =========================
+  // =====================================================
+  // FETCH NOTICES
+  // =====================================================
 
   const fetchNotices = async () => {
     try {
       setLoading(true);
 
-      const res = await getAllNotices();
+      const response = await getAllNotices();
 
-      const sortedNotices = res.data.data.sort(
+      console.log("GET NOTICES RESPONSE:", response.data);
+
+      const data = response.data?.data;
+
+      if (!Array.isArray(data)) {
+        throw new Error("Invalid notices response from server.");
+      }
+
+      const sortedNotices = [...data].sort(
         (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
       );
 
       setNotices(sortedNotices);
     } catch (error) {
-      console.error(error);
-      toast.error("Failed to load notices.");
+      console.error("FETCH NOTICES ERROR:", error);
+      console.error("STATUS:", error.response?.status);
+      console.error("RESPONSE:", error.response?.data);
+
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to load notices.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // =========================
-  // Search Filter
-  // =========================
+  // =====================================================
+  // LOAD ON PAGE OPEN
+  // =====================================================
 
-  const filteredNotices = notices.filter((notice) =>
-    notice.title.toLowerCase().includes(search.toLowerCase()),
-  );
+  useEffect(() => {
+    fetchNotices();
+  }, []);
 
-  // =========================
-  // Pagination
-  // =========================
+  // =====================================================
+  // FORM INPUT
+  // =====================================================
 
-  const indexOfLastNotice = currentPage * noticesPerPage;
-  const indexOfFirstNotice = indexOfLastNotice - noticesPerPage;
+  const handleChange = (event) => {
+    const { name, value } = event.target;
 
-  const currentNotices = filteredNotices.slice(
-    indexOfFirstNotice,
-    indexOfLastNotice,
-  );
+    setFormData((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+  };
 
-  const totalPages = Math.ceil(filteredNotices.length / noticesPerPage);
+  // =====================================================
+  // ADD / UPDATE NOTICE
+  // =====================================================
 
-  // =========================
-  // Add / Update Notice
-  // =========================
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
-  const handleSubmit = async () => {
-    if (formData.title.trim() === "" || formData.description.trim() === "") {
+    const title = formData.title.trim();
+    const description = formData.description.trim();
+
+    if (!title || !description) {
       toast.error("Please fill all fields.");
       return;
     }
 
     try {
+      setSaving(true);
+
       if (editingId) {
-        await updateNotice(editingId, formData);
+        const response = await updateNotice(editingId, {
+          title,
+          description,
+        });
+
+        console.log("UPDATE NOTICE RESPONSE:", response.data);
+
         toast.success("Notice updated successfully.");
       } else {
-        await createNotice(formData);
+        const response = await createNotice({
+          title,
+          description,
+        });
+
+        console.log("CREATE NOTICE RESPONSE:", response.data);
+
         toast.success("Notice added successfully.");
       }
 
@@ -103,26 +128,34 @@ function Notices() {
       });
 
       setEditingId(null);
-
-      fetchNotices();
-
       setCurrentPage(1);
+
+      await fetchNotices();
     } catch (error) {
-      console.error(error);
-      toast.error("Something went wrong.");
+      console.error("NOTICE SAVE ERROR:", error);
+      console.error("STATUS:", error.response?.status);
+      console.error("RESPONSE:", error.response?.data);
+
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Something went wrong.",
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
-  // =========================
-  // Edit Notice
-  // =========================
+  // =====================================================
+  // EDIT NOTICE
+  // =====================================================
 
   const handleEdit = (notice) => {
     setEditingId(notice._id);
 
     setFormData({
-      title: notice.title,
-      description: notice.description,
+      title: notice.title || "",
+      description: notice.description || "",
     });
 
     window.scrollTo({
@@ -131,9 +164,22 @@ function Notices() {
     });
   };
 
-  // =========================
-  // Delete Notice
-  // =========================
+  // =====================================================
+  // CLEAR FORM
+  // =====================================================
+
+  const handleClear = () => {
+    setEditingId(null);
+
+    setFormData({
+      title: "",
+      description: "",
+    });
+  };
+
+  // =====================================================
+  // DELETE NOTICE
+  // =====================================================
 
   const handleDelete = async (id) => {
     const result = await Swal.fire({
@@ -147,38 +193,89 @@ function Notices() {
       cancelButtonText: "Cancel",
     });
 
-    if (!result.isConfirmed) return;
+    if (!result.isConfirmed) {
+      return;
+    }
 
     try {
-      await deleteNotice(id);
+      const response = await deleteNotice(id);
+
+      console.log("DELETE NOTICE RESPONSE:", response.data);
 
       toast.success("Notice deleted successfully.");
 
-      fetchNotices();
+      await fetchNotices();
 
       setCurrentPage(1);
     } catch (error) {
-      console.error(error);
-      toast.error("Something went wrong.");
+      console.error("DELETE NOTICE ERROR:", error);
+      console.error("STATUS:", error.response?.status);
+      console.error("RESPONSE:", error.response?.data);
+
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          "Something went wrong.",
+      );
     }
   };
 
-  // =========================
-  // Loading Spinner
-  // =========================
+  // =====================================================
+  // SEARCH
+  // =====================================================
+
+  const filteredNotices = notices.filter((notice) => {
+    const title = notice.title || "";
+    const description = notice.description || "";
+
+    const searchText = search.toLowerCase();
+
+    return (
+      title.toLowerCase().includes(searchText) ||
+      description.toLowerCase().includes(searchText)
+    );
+  });
+
+  // =====================================================
+  // PAGINATION
+  // =====================================================
+
+  const totalPages = Math.ceil(filteredNotices.length / noticesPerPage);
+
+  const safeCurrentPage =
+    totalPages > 0 && currentPage > totalPages ? totalPages : currentPage;
+
+  const indexOfLastNotice = safeCurrentPage * noticesPerPage;
+  const indexOfFirstNotice = indexOfLastNotice - noticesPerPage;
+
+  const currentNotices = filteredNotices.slice(
+    indexOfFirstNotice,
+    indexOfLastNotice,
+  );
+
+  // =====================================================
+  // LOADING
+  // =====================================================
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="w-14 h-14 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="w-14 h-14 mx-auto border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+
+          <p className="mt-4 text-gray-600">Loading notices...</p>
+        </div>
       </div>
     );
   }
 
+  // =====================================================
+  // UI
+  // =====================================================
+
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      {/* ================= Header ================= */}
-
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">
@@ -195,14 +292,15 @@ function Notices() {
             type="text"
             placeholder="Search notice..."
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
+            onChange={(event) => {
+              setSearch(event.target.value);
               setCurrentPage(1);
             }}
             className="w-72 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
 
           <button
+            type="button"
             onClick={() => {
               setSearch("");
               setCurrentPage(1);
@@ -214,75 +312,70 @@ function Notices() {
         </div>
       </div>
 
-      {/* ================= Add / Update Form ================= */}
-
+      {/* ADD / UPDATE FORM */}
       <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
         <h2 className="text-2xl font-bold text-blue-600 mb-5">
           {editingId ? "Update Notice" : "Add New Notice"}
         </h2>
 
-        <div className="space-y-4">
-          <input
-            type="text"
-            placeholder="Notice Title"
-            value={formData.title}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                title: e.target.value,
-              })
-            }
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          />
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <input
+              type="text"
+              name="title"
+              placeholder="Notice Title"
+              value={formData.title}
+              onChange={handleChange}
+              disabled={saving}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100"
+            />
 
-          <textarea
-            rows="5"
-            placeholder="Notice Description"
-            value={formData.description}
-            onChange={(e) =>
-              setFormData({
-                ...formData,
-                description: e.target.value,
-              })
-            }
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 resize-none focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          />
+            <textarea
+              name="description"
+              rows="5"
+              placeholder="Notice Description"
+              value={formData.description}
+              onChange={handleChange}
+              disabled={saving}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 resize-none focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100"
+            />
 
-          <div className="flex gap-3">
-            <button
-              onClick={handleSubmit}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition"
-            >
-              {editingId ? "Update Notice" : "Add Notice"}
-            </button>
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={saving}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-6 py-3 rounded-lg transition"
+              >
+                {saving
+                  ? "Saving..."
+                  : editingId
+                    ? "Update Notice"
+                    : "Add Notice"}
+              </button>
 
-            <button
-              onClick={() => {
-                setEditingId(null);
-
-                setFormData({
-                  title: "",
-                  description: "",
-                });
-              }}
-              className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition"
-            >
-              Clear
-            </button>
+              <button
+                type="button"
+                onClick={handleClear}
+                disabled={saving}
+                className="bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 text-white px-6 py-3 rounded-lg transition"
+              >
+                Clear
+              </button>
+            </div>
           </div>
-        </div>
+        </form>
       </div>
 
-      {/* ================= Notice List ================= */}
-
+      {/* NOTICE HEADER */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold text-gray-800">All Notices</h2>
 
         <span className="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg font-semibold">
-          Total Notices : {filteredNotices.length}
+          Total Notices: {filteredNotices.length}
         </span>
       </div>
 
+      {/* NOTICE TABLE */}
       <div className="bg-white rounded-xl shadow-lg border overflow-x-auto">
         <table className="w-full">
           <thead className="bg-blue-600 text-white">
@@ -320,17 +413,20 @@ function Notices() {
 
                   <td className="p-4 max-w-md" title={notice.description}>
                     {notice.description.length > 80
-                      ? notice.description.substring(0, 80) + "..."
+                      ? `${notice.description.substring(0, 80)}...`
                       : notice.description}
                   </td>
 
                   <td className="p-4 text-center whitespace-nowrap">
-                    {new Date(notice.createdAt).toLocaleDateString("en-IN")}
+                    {notice.createdAt
+                      ? new Date(notice.createdAt).toLocaleDateString("en-IN")
+                      : "-"}
                   </td>
 
                   <td className="p-4">
                     <div className="flex justify-center gap-3">
                       <button
+                        type="button"
                         onClick={() => handleEdit(notice)}
                         className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg transition"
                       >
@@ -338,6 +434,7 @@ function Notices() {
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => handleDelete(notice._id)}
                         className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition"
                       >
@@ -350,14 +447,15 @@ function Notices() {
             )}
           </tbody>
         </table>
-        {/* ================= Pagination ================= */}
 
+        {/* PAGINATION */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 p-5 border-t bg-gray-50">
           <button
-            onClick={() => setCurrentPage((prev) => prev - 1)}
-            disabled={currentPage === 1}
+            type="button"
+            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            disabled={safeCurrentPage === 1}
             className={`px-5 py-2 rounded-lg font-medium transition ${
-              currentPage === 1
+              safeCurrentPage === 1
                 ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                 : "bg-blue-600 text-white hover:bg-blue-700"
             }`}
@@ -366,26 +464,34 @@ function Notices() {
           </button>
 
           <div className="flex flex-wrap justify-center gap-2">
-            {[...Array(totalPages)].map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentPage(index + 1)}
-                className={`w-10 h-10 rounded-lg font-semibold transition ${
-                  currentPage === index + 1
-                    ? "bg-blue-600 text-white"
-                    : "bg-white border border-gray-300 hover:bg-blue-100"
-                }`}
-              >
-                {index + 1}
-              </button>
-            ))}
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map(
+              (page) => (
+                <button
+                  type="button"
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`w-10 h-10 rounded-lg font-semibold transition ${
+                    safeCurrentPage === page
+                      ? "bg-blue-600 text-white"
+                      : "bg-white border border-gray-300 hover:bg-blue-100"
+                  }`}
+                >
+                  {page}
+                </button>
+              ),
+            )}
           </div>
 
           <button
-            onClick={() => setCurrentPage((prev) => prev + 1)}
-            disabled={currentPage === totalPages || totalPages === 0}
+            type="button"
+            onClick={() =>
+              setCurrentPage((page) =>
+                totalPages > 0 ? Math.min(totalPages, page + 1) : 1,
+              )
+            }
+            disabled={totalPages === 0 || safeCurrentPage === totalPages}
             className={`px-5 py-2 rounded-lg font-medium transition ${
-              currentPage === totalPages || totalPages === 0
+              totalPages === 0 || safeCurrentPage === totalPages
                 ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                 : "bg-blue-600 text-white hover:bg-blue-700"
             }`}
