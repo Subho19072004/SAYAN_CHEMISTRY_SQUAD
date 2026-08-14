@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { getSettings } from "../services/settingsService";
+import { SERVER_BASE_URL } from "../utils/constants";
 
 function Navbar() {
   const [settings, setSettings] = useState(null);
@@ -18,14 +19,21 @@ function Navbar() {
     fetchSettings();
   }, []);
 
+  // Build image URL for both local development and production
+  const logoUrl = settings?.logo
+    ? settings.logo.startsWith("http")
+      ? settings.logo
+      : `${SERVER_BASE_URL}${settings.logo}`
+    : null;
+
   return (
     <nav className="bg-white shadow-sm">
       <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
         {/* Logo + Institute Name */}
         <Link to="/" className="flex items-center gap-3">
-          {settings?.logo && (
+          {logoUrl && (
             <img
-              src={`http://localhost:5000${settings.logo}`}
+              src={logoUrl}
               alt="Logo"
               className="w-12 h-12 object-contain"
             />
@@ -46,7 +54,6 @@ function Navbar() {
             About
           </Link>
 
-          {/* Contact Section */}
           <Link to="/contact" className="hover:text-blue-600">
             Contact
           </Link>
