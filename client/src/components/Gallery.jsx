@@ -1,6 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { getGallery } from "../services/galleryService";
 
+const SERVER_BASE_URL = import.meta.env.VITE_SERVER_BASE_URL;
+
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return "";
+
+  if (
+    imagePath.startsWith("http://") ||
+    imagePath.startsWith("https://")
+  ) {
+    return imagePath;
+  }
+
+  return `${SERVER_BASE_URL}${imagePath}`;
+};
+
 const Gallery = () => {
   const [gallery, setGallery] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -8,11 +23,16 @@ const Gallery = () => {
 
   const scrollRef = useRef(null);
 
-  // Fetch gallery images
+  // =====================================================
+  // FETCH GALLERY
+  // =====================================================
+
   useEffect(() => {
     const fetchGallery = async () => {
       try {
         const response = await getGallery();
+
+        console.log("Gallery response:", response.data);
 
         const images = response.data?.data || [];
 
@@ -28,9 +48,14 @@ const Gallery = () => {
     fetchGallery();
   }, []);
 
-  // Continuous left scrolling
+  // =====================================================
+  // CONTINUOUS SCROLL
+  // =====================================================
+
   useEffect(() => {
-    if (!gallery.length || !scrollRef.current) return;
+    if (!gallery.length || !scrollRef.current) {
+      return;
+    }
 
     const container = scrollRef.current;
 
@@ -41,7 +66,6 @@ const Gallery = () => {
       if (!paused) {
         container.scrollLeft += 0.7;
 
-        // Reset position for continuous scrolling
         if (
           container.scrollLeft >=
           container.scrollWidth - container.clientWidth - 1
@@ -63,36 +87,65 @@ const Gallery = () => {
       paused = false;
     };
 
-    container.addEventListener("mouseenter", handleMouseEnter);
-    container.addEventListener("mouseleave", handleMouseLeave);
+    container.addEventListener(
+      "mouseenter",
+      handleMouseEnter,
+    );
+
+    container.addEventListener(
+      "mouseleave",
+      handleMouseLeave,
+    );
 
     return () => {
       cancelAnimationFrame(animationFrame);
 
-      container.removeEventListener("mouseenter", handleMouseEnter);
-      container.removeEventListener("mouseleave", handleMouseLeave);
+      container.removeEventListener(
+        "mouseenter",
+        handleMouseEnter,
+      );
+
+      container.removeEventListener(
+        "mouseleave",
+        handleMouseLeave,
+      );
     };
   }, [gallery]);
+
+  // =====================================================
+  // LOADING
+  // =====================================================
 
   if (loading) {
     return (
       <section className="py-16 bg-gray-50">
-        <div className="text-center text-gray-500">Loading gallery...</div>
+        <div className="text-center text-gray-500">
+          Loading gallery...
+        </div>
       </section>
     );
   }
+
+  // =====================================================
+  // EMPTY
+  // =====================================================
 
   if (gallery.length === 0) {
     return null;
   }
 
+  // =====================================================
+  // UI
+  // =====================================================
+
   return (
     <>
-      {/* Gallery Section */}
       <section className="py-16 bg-gray-50 overflow-hidden">
         <div className="max-w-7xl mx-auto">
+
           {/* Heading */}
           <div className="text-center mb-10 px-6">
+
             <span className="inline-block px-5 py-2 rounded-full bg-blue-100 text-blue-600 font-medium text-sm">
               📸 Our Gallery
             </span>
@@ -104,17 +157,16 @@ const Gallery = () => {
             <p className="text-gray-500 mt-2">
               Explore moments from Sayan's Chemistry Squad.
             </p>
+
           </div>
 
-          {/* Horizontal Scrolling Gallery */}
+          {/* Gallery */}
           <div
             ref={scrollRef}
             className="flex gap-5 overflow-x-hidden px-6 cursor-pointer"
           >
             {gallery.map((item) => {
-              const imageUrl = item.image?.startsWith("http")
-                ? item.image
-                : `http://localhost:5000${item.image}`;
+              const imageUrl = getImageUrl(item.image);
 
               return (
                 <div
@@ -122,11 +174,21 @@ const Gallery = () => {
                   onClick={() => setSelectedImage(item)}
                   className="shrink-0 w-75 md:w-90 bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition duration-300"
                 >
+
                   <img
                     src={imageUrl}
                     alt={item.title || "Gallery image"}
                     className="w-full h-60 object-cover hover:scale-105 transition duration-500"
                     loading="lazy"
+                    onError={(event) => {
+                      console.error(
+                        "Gallery image failed:",
+                        imageUrl,
+                      );
+
+                      event.currentTarget.style.display =
+                        "none";
+                    }}
                   />
 
                   {item.title && (
@@ -136,6 +198,7 @@ const Gallery = () => {
                       </h3>
                     </div>
                   )}
+
                 </div>
               );
             })}
@@ -143,19 +206,29 @@ const Gallery = () => {
         </div>
       </section>
 
-      {/* Full Size Image Modal */}
+      {/* =================================================
+          FULL IMAGE MODAL
+      ================================================= */}
+
       {selectedImage && (
         <div
           className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
           onClick={() => setSelectedImage(null)}
         >
+
           <div
             className="relative max-w-6xl max-h-[90vh]"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) =>
+              event.stopPropagation()
+            }
           >
-            {/* Close Button */}
+
+            {/* Close */}
             <button
-              onClick={() => setSelectedImage(null)}
+              type="button"
+              onClick={() =>
+                setSelectedImage(null)
+              }
               className="absolute -top-12 right-0 text-white text-4xl font-bold hover:text-gray-300"
               aria-label="Close"
             >
@@ -164,21 +237,21 @@ const Gallery = () => {
 
             {/* Full Image */}
             <img
-              src={
-                selectedImage.image?.startsWith("http")
-                  ? selectedImage.image
-                  : `http://localhost:5000${selectedImage.image}`
+              src={getImageUrl(selectedImage.image)}
+              alt={
+                selectedImage.title ||
+                "Gallery image"
               }
-              alt={selectedImage.title || "Gallery image"}
               className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
             />
 
-            {/* Image Title */}
+            {/* Title */}
             {selectedImage.title && (
               <div className="text-center text-white mt-4 text-lg font-semibold">
                 {selectedImage.title}
               </div>
             )}
+
           </div>
         </div>
       )}
