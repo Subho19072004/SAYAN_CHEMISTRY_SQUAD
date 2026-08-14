@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-
 import {
   FaCog,
   FaUniversity,
@@ -12,25 +11,28 @@ import {
   FaPlus,
   FaTrash,
 } from "react-icons/fa";
-
 import { toast } from "react-toastify";
 
 import { getSettings, updateSettings } from "../../services/settingsService";
 
 import { changePassword, updateProfile } from "../../services/adminService";
 
-// ======================================================
-// DEFAULT CENTRE
-// ======================================================
+import { SERVER_BASE_URL } from "../../utils/constants";
 
 const emptyCentre = {
   name: "",
   location: "",
 };
 
-// ======================================================
-// SETTINGS COMPONENT
-// ======================================================
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return "";
+
+  if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+    return imagePath;
+  }
+
+  return `${SERVER_BASE_URL}${imagePath}`;
+};
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("general");
@@ -40,10 +42,6 @@ export default function Settings() {
 
   const [logoPreview, setLogoPreview] = useState("");
   const [profilePreview, setProfilePreview] = useState("");
-
-  // ====================================================
-  // FORM DATA
-  // ====================================================
 
   const [formData, setFormData] = useState({
     instituteName: "",
@@ -75,17 +73,12 @@ export default function Settings() {
     logo: null,
     profileImage: null,
 
-    centres: [
-      {
-        name: "",
-        location: "",
-      },
-    ],
+    centres: [{ ...emptyCentre }],
   });
 
-  // ====================================================
+  // =====================================================
   // LOAD SETTINGS
-  // ====================================================
+  // =====================================================
 
   useEffect(() => {
     fetchSettings();
@@ -97,14 +90,13 @@ export default function Settings() {
 
       const res = await getSettings();
 
-      if (res.data.success) {
-        const data = res.data.data;
+      if (res.data?.success) {
+        const data = res.data.data || {};
 
         setFormData((prev) => ({
           ...prev,
           ...data,
 
-          // Never allow centres to become undefined
           centres:
             Array.isArray(data.centres) && data.centres.length > 0
               ? data.centres.map((centre) => ({
@@ -113,19 +105,20 @@ export default function Settings() {
                 }))
               : [{ ...emptyCentre }],
 
-          // File objects should not come from API data
           logo: null,
           profileImage: null,
         }));
 
+        // Existing logo
         if (data.logo) {
-          setLogoPreview(`http://localhost:5000${data.logo}`);
+          setLogoPreview(getImageUrl(data.logo));
         } else {
           setLogoPreview("");
         }
 
+        // Existing profile image
         if (data.profileImage) {
-          setProfilePreview(`http://localhost:5000${data.profileImage}`);
+          setProfilePreview(getImageUrl(data.profileImage));
         } else {
           setProfilePreview("");
         }
@@ -139,9 +132,9 @@ export default function Settings() {
     }
   };
 
-  // ====================================================
-  // NORMAL INPUT CHANGE
-  // ====================================================
+  // =====================================================
+  // NORMAL INPUT
+  // =====================================================
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -152,9 +145,9 @@ export default function Settings() {
     }));
   };
 
-  // ====================================================
-  // CENTRE FUNCTIONS
-  // ====================================================
+  // =====================================================
+  // CENTRES
+  // =====================================================
 
   const handleCentreChange = (index, field, value) => {
     setFormData((prev) => {
@@ -175,18 +168,12 @@ export default function Settings() {
   const addCentre = () => {
     setFormData((prev) => ({
       ...prev,
-      centres: [
-        ...prev.centres,
-        {
-          ...emptyCentre,
-        },
-      ],
+      centres: [...prev.centres, { ...emptyCentre }],
     }));
   };
 
   const removeCentre = (index) => {
     setFormData((prev) => {
-      // Keep at least one centre input
       if (prev.centres.length === 1) {
         return {
           ...prev,
@@ -201,9 +188,9 @@ export default function Settings() {
     });
   };
 
-  // ====================================================
+  // =====================================================
   // LOGO
-  // ====================================================
+  // =====================================================
 
   const handleLogo = (e) => {
     const file = e.target.files?.[0];
@@ -218,9 +205,9 @@ export default function Settings() {
     setLogoPreview(URL.createObjectURL(file));
   };
 
-  // ====================================================
+  // =====================================================
   // PROFILE IMAGE
-  // ====================================================
+  // =====================================================
 
   const handleProfile = (e) => {
     const file = e.target.files?.[0];
@@ -235,19 +222,15 @@ export default function Settings() {
     setProfilePreview(URL.createObjectURL(file));
   };
 
-  // ====================================================
+  // =====================================================
   // SAVE SETTINGS
-  // ====================================================
+  // =====================================================
 
   const handleSave = async () => {
     try {
       setSaving(true);
 
       const data = new FormData();
-
-      // ----------------------------------------------
-      // General
-      // ----------------------------------------------
 
       data.append("instituteName", formData.instituteName || "");
 
@@ -263,25 +246,13 @@ export default function Settings() {
 
       data.append("address", formData.address || "");
 
-      // ----------------------------------------------
-      // Admin
-      // ----------------------------------------------
-
       data.append("adminName", formData.adminName || "");
 
       data.append("adminEmail", formData.adminEmail || "");
 
-      // ----------------------------------------------
-      // Academic
-      // ----------------------------------------------
-
       data.append("academicSession", formData.academicSession || "");
 
       data.append("admissionStatus", formData.admissionStatus || "Open");
-
-      // ----------------------------------------------
-      // Social
-      // ----------------------------------------------
 
       data.append("facebook", formData.facebook || "");
 
@@ -291,22 +262,11 @@ export default function Settings() {
 
       data.append("telegram", formData.telegram || "");
 
-      // ----------------------------------------------
-      // Theme
-      // ----------------------------------------------
-
       data.append("themeColor", formData.themeColor || "#2563eb");
 
       data.append("secondaryColor", formData.secondaryColor || "#0f172a");
 
-      // ----------------------------------------------
-      // CENTRES
-      // ----------------------------------------------
-      // IMPORTANT:
-      // FormData cannot directly send an array of objects.
-      // Convert centres to JSON first.
-      // ----------------------------------------------
-
+      // Centres
       const cleanedCentres = formData.centres
         .filter((centre) => centre.name?.trim() || centre.location?.trim())
         .map((centre) => ({
@@ -316,32 +276,21 @@ export default function Settings() {
 
       data.append("centres", JSON.stringify(cleanedCentres));
 
-      // ----------------------------------------------
       // Logo
-      // ----------------------------------------------
-
       if (formData.logo instanceof File) {
         data.append("logo", formData.logo);
       }
 
-      // ----------------------------------------------
-      // Profile Image
-      // ----------------------------------------------
-
+      // Profile image
       if (formData.profileImage instanceof File) {
         data.append("profileImage", formData.profileImage);
       }
 
-      // ----------------------------------------------
-      // API
-      // ----------------------------------------------
-
       const res = await updateSettings(data);
 
-      if (res.data.success) {
+      if (res.data?.success) {
         toast.success("Settings updated successfully");
 
-        // Reload database values
         await fetchSettings();
       }
     } catch (error) {
@@ -353,9 +302,9 @@ export default function Settings() {
     }
   };
 
-  // ====================================================
+  // =====================================================
   // CHANGE PASSWORD
-  // ====================================================
+  // =====================================================
 
   const handleChangePassword = async () => {
     try {
@@ -373,7 +322,6 @@ export default function Settings() {
 
       const res = await changePassword({
         currentPassword: formData.currentPassword,
-
         newPassword: formData.newPassword,
       });
 
@@ -381,7 +329,6 @@ export default function Settings() {
 
       setFormData((prev) => ({
         ...prev,
-
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
@@ -391,9 +338,9 @@ export default function Settings() {
     }
   };
 
-  // ====================================================
+  // =====================================================
   // UPDATE ADMIN PROFILE
-  // ====================================================
+  // =====================================================
 
   const handleUpdateProfile = async () => {
     try {
@@ -424,23 +371,14 @@ export default function Settings() {
     }
   };
 
-  // ====================================================
+  // =====================================================
   // UI
-  // ====================================================
+  // =====================================================
 
   return (
     <div className="flex min-h-screen bg-slate-100">
-      {/* =================================================
-          IMPORTANT:
-          No Sidebar here.
-          AdminLayout already provides the Sidebar.
-      ================================================= */}
-
       <main className="flex-1 p-6 lg:p-10 bg-slate-100 overflow-y-auto">
-        {/* =================================================
-            HEADER
-        ================================================= */}
-
+        {/* HEADER */}
         <div className="bg-linear-to-r from-blue-600 to-indigo-700 rounded-3xl shadow-xl p-8 flex flex-col lg:flex-row justify-between items-center text-white">
           <div>
             <h1 className="text-4xl font-bold flex items-center gap-3">
@@ -459,15 +397,11 @@ export default function Settings() {
             className="mt-6 lg:mt-0 bg-white text-blue-700 px-8 py-3 rounded-xl font-semibold shadow-md hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-2 disabled:opacity-60"
           >
             <FaSave />
-
             {saving ? "Saving..." : "Save Changes"}
           </button>
         </div>
 
-        {/* =================================================
-            SUMMARY CARDS
-        ================================================= */}
-
+        {/* SUMMARY CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mt-8">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-7">
             <p className="text-gray-500">Institute</p>
@@ -512,15 +446,9 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* =================================================
-            SETTINGS PANEL
-        ================================================= */}
-
+        {/* SETTINGS PANEL */}
         <div className="bg-white rounded-3xl shadow-lg mt-8 overflow-hidden">
-          {/* =================================================
-              TABS
-          ================================================= */}
-
+          {/* TABS */}
           <div className="border-b p-5 flex flex-wrap gap-3">
             {[
               {
@@ -564,10 +492,7 @@ export default function Settings() {
             ))}
           </div>
 
-          {/* =================================================
-              TAB CONTENT
-          ================================================= */}
-
+          {/* TAB CONTENT */}
           <div className="p-8">
             {loading ? (
               <div className="flex justify-center py-20">
@@ -575,10 +500,7 @@ export default function Settings() {
               </div>
             ) : (
               <>
-                {/* =================================================
-                    GENERAL
-                ================================================= */}
-
+                {/* GENERAL */}
                 {activeTab === "general" && (
                   <div className="space-y-10">
                     <div>
@@ -592,7 +514,6 @@ export default function Settings() {
                     </div>
 
                     {/* GENERAL INFORMATION */}
-
                     <div className="grid lg:grid-cols-2 gap-6">
                       <div>
                         <label className="block font-semibold mb-2">
@@ -696,10 +617,7 @@ export default function Settings() {
                       </div>
                     </div>
 
-                    {/* =================================================
-                        OUR CENTRES
-                    ================================================= */}
-
+                    {/* CENTRES */}
                     <div className="border border-gray-300 rounded-2xl p-7 bg-gray-50">
                       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-7">
                         <div>
@@ -796,10 +714,7 @@ export default function Settings() {
                       </div>
                     </div>
 
-                    {/* =================================================
-                        LOGO
-                    ================================================= */}
-
+                    {/* LOGO */}
                     <div className="border rounded-2xl p-8 bg-gray-50">
                       <h3 className="text-xl font-bold mb-6">Institute Logo</h3>
 
@@ -810,6 +725,12 @@ export default function Settings() {
                               src={logoPreview}
                               alt="Logo"
                               className="w-full h-full object-cover"
+                              onError={() => {
+                                console.error(
+                                  "Failed to load logo:",
+                                  logoPreview,
+                                );
+                              }}
                             />
                           ) : (
                             <FaCamera className="text-6xl text-gray-400" />
@@ -837,10 +758,7 @@ export default function Settings() {
                   </div>
                 )}
 
-                {/* =================================================
-                    ADMIN
-                ================================================= */}
-
+                {/* ADMIN */}
                 {activeTab === "admin" && (
                   <div className="space-y-10">
                     <div>
@@ -855,7 +773,6 @@ export default function Settings() {
 
                     <div className="grid lg:grid-cols-3 gap-8">
                       {/* PROFILE IMAGE */}
-
                       <div className="bg-gray-50 rounded-2xl border p-8 flex flex-col items-center">
                         <div className="w-44 h-44 rounded-full overflow-hidden border-4 border-blue-500">
                           {profilePreview ? (
@@ -863,6 +780,12 @@ export default function Settings() {
                               src={profilePreview}
                               alt="Profile"
                               className="w-full h-full object-cover"
+                              onError={() => {
+                                console.error(
+                                  "Failed to load profile image:",
+                                  profilePreview,
+                                );
+                              }}
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-gray-200">
@@ -884,7 +807,6 @@ export default function Settings() {
                       </div>
 
                       {/* ADMIN DETAILS */}
-
                       <div className="lg:col-span-2 grid md:grid-cols-2 gap-6">
                         <div>
                           <label className="block mb-2 font-semibold">
@@ -941,10 +863,7 @@ export default function Settings() {
                   </div>
                 )}
 
-                {/* =================================================
-                    SECURITY
-                ================================================= */}
-
+                {/* SECURITY */}
                 {activeTab === "security" && (
                   <div className="space-y-10">
                     <div>
@@ -1012,10 +931,7 @@ export default function Settings() {
                   </div>
                 )}
 
-                {/* =================================================
-                    SOCIAL
-                ================================================= */}
-
+                {/* SOCIAL */}
                 {activeTab === "social" && (
                   <div className="space-y-10">
                     <div>
@@ -1030,73 +946,48 @@ export default function Settings() {
                     </div>
 
                     <div className="grid md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block mb-2 font-semibold">
-                          Facebook
-                        </label>
+                      {[
+                        {
+                          name: "facebook",
+                          label: "Facebook",
+                          placeholder: "https://facebook.com/...",
+                        },
+                        {
+                          name: "instagram",
+                          label: "Instagram",
+                          placeholder: "https://instagram.com/...",
+                        },
+                        {
+                          name: "youtube",
+                          label: "YouTube",
+                          placeholder: "https://youtube.com/...",
+                        },
+                        {
+                          name: "telegram",
+                          label: "Telegram",
+                          placeholder: "https://t.me/...",
+                        },
+                      ].map((social) => (
+                        <div key={social.name}>
+                          <label className="block mb-2 font-semibold">
+                            {social.label}
+                          </label>
 
-                        <input
-                          type="text"
-                          name="facebook"
-                          value={formData.facebook}
-                          onChange={handleChange}
-                          placeholder="https://facebook.com/..."
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 font-semibold">
-                          Instagram
-                        </label>
-
-                        <input
-                          type="text"
-                          name="instagram"
-                          value={formData.instagram}
-                          onChange={handleChange}
-                          placeholder="https://instagram.com/..."
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 font-semibold">
-                          YouTube
-                        </label>
-
-                        <input
-                          type="text"
-                          name="youtube"
-                          value={formData.youtube}
-                          onChange={handleChange}
-                          placeholder="https://youtube.com/..."
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 font-semibold">
-                          Telegram
-                        </label>
-
-                        <input
-                          type="text"
-                          name="telegram"
-                          value={formData.telegram}
-                          onChange={handleChange}
-                          placeholder="https://t.me/..."
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3"
-                        />
-                      </div>
+                          <input
+                            type="text"
+                            name={social.name}
+                            value={formData[social.name]}
+                            onChange={handleChange}
+                            placeholder={social.placeholder}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-3"
+                          />
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
 
-                {/* =================================================
-                    WEBSITE
-                ================================================= */}
-
+                {/* WEBSITE */}
                 {activeTab === "website" && (
                   <div className="space-y-10">
                     <div>
@@ -1172,11 +1063,14 @@ export default function Settings() {
                     </div>
 
                     {/* THEME PREVIEW */}
-
                     <div
                       className="rounded-2xl p-8 text-white"
                       style={{
-                        background: `linear-gradient(135deg, ${formData.themeColor}, ${formData.secondaryColor})`,
+                        background: `linear-gradient(
+                          135deg,
+                          ${formData.themeColor},
+                          ${formData.secondaryColor}
+                        )`,
                       }}
                     >
                       <h2 className="text-4xl font-bold">
