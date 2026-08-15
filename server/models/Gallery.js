@@ -12,6 +12,10 @@ const gallerySchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+
+    publicId: {
+      type: String,
+    },
   },
   {
     timestamps: true,
